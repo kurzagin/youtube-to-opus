@@ -1,28 +1,36 @@
 # YouTube to OPUS Web Client
 
-A modern TypeScript web application to extract and stream high-fidelity **OPUS audio** directly from YouTube URLs using `yt-dlp` and `ffmpeg`.
+A modern TypeScript web application to extract and stream high-fidelity **OPUS audio** directly from YouTube URLs using `yt-dlp` and `ffmpeg` with a Kurzagin-themed, mobile-responsive web UI.
+
+---
 
 ## Prerequisites
 
-Ensure the following tools and runtimes are installed on your system:
+Ensure the following tools and runtimes are installed on your system and accessible in your system `$PATH`:
 
-- **Node.js**: v18.0.0 or higher ([nodejs.org](https://nodejs.org/))
-- **npm**: v9.0.0 or higher (bundled with Node.js)
-- **yt-dlp**: Must be installed and accessible in your system `$PATH`
+- **Node.js**: `v18.0.0` or higher ([nodejs.org](https://nodejs.org/))
+- **npm**: `v9.0.0` or higher (bundled with Node.js)
+- **yt-dlp**: Required to query video metadata and extract audio streams
   - Linux: `sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp` or via package manager (`sudo apt install yt-dlp` / `brew install yt-dlp`)
-- **ffmpeg**: Must be installed and accessible in your system `$PATH` with `libopus` support enabled
+  - macOS: `brew install yt-dlp`
+  - Windows: `winget install yt-dlp` or `choco install yt-dlp`
+- **ffmpeg**: Required with `libopus` support enabled for on-the-fly audio transcoding
   - Debian/Ubuntu: `sudo apt update && sudo apt install ffmpeg`
   - macOS: `brew install ffmpeg`
   - Windows: `winget install Gyan.FFmpeg` or `choco install ffmpeg`
 
+---
+
 ## Features
 
-- **TypeScript Fullstack**: End-to-end typed interface with Express backend and Vite client frontend.
-- **Direct OPUS Streaming & Download**: Pipes directly through `yt-dlp` and `ffmpeg` without storing intermediate files on disk, conserving space and delivering instant playback.
+- **TypeScript Fullstack**: End-to-end typed interface with Express backend and Vite 8 + React 19 frontend.
+- **Direct OPUS Streaming & Download**: Pipes directly through `yt-dlp` and `ffmpeg` without storing intermediate files on disk, conserving disk space and delivering instant playback.
 - **Audio Quality Options**: Select between best direct stream (~160kbps VBR Opus) or target bitrates (192kbps, 128kbps, 96kbps, 64kbps).
 - **In-Browser Audio Preview**: Listen to the Opus stream directly in the browser before or alongside downloading.
-- **Video Inspection**: Previews thumbnail, title, channel name, views, and duration.
-- **Clipboard Paste**: Quick-paste button for URLs.
+- **Mobile Responsive**: Fully adaptive UI optimized for mobile viewports, touch targets, and desktop displays.
+- **Kurzagin Design Aesthetic**: Dark dot-grid aesthetic, precision accents, and micro typographic details.
+
+---
 
 ## Getting Started
 
@@ -38,15 +46,17 @@ Run both backend API and Vite UI simultaneously with one command:
 npm run dev
 ```
 
-- **Web UI**: http://localhost:3000 (proxies API requests to backend)
-- **API Server**: http://localhost:3001
+- **Web UI**: `http://localhost:3000` (proxies API requests to backend)
+- **API Server**: `http://localhost:3001`
 
 ### 3. Production Build & Start
 ```bash
 npm run build
 npm start
 ```
-The server will host both the API and client at http://localhost:3001.
+The server will host both the API and client at `http://localhost:3001`.
+
+---
 
 ## License
 
