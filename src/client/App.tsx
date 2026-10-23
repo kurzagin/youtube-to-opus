@@ -6,23 +6,27 @@ import {
   Play, 
   Clipboard, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  DownloadCloud,
+  Trash2,
+  CheckCircle2
 } from 'lucide-react';
-import type { VideoMetadata } from '../shared/types.js';
+import type { VideoMetadata, VideoItemState } from '../shared/types.js';
 
 export const App: React.FC = () => {
-  const [url, setUrl] = useState('');
+  const [urlsInput, setUrlsInput] = useState('');
   const [bitrate, setBitrate] = useState('best');
   const [embedMetadata, setEmbedMetadata] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<VideoItemState[]>([]);
   const [status, setStatus] = useState<{
     title: string;
     desc: string;
     isError?: boolean;
     showSpinner?: boolean;
   } | null>(null);
-  const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [activePreviewId, setActivePreviewId] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -30,7 +34,11 @@ export const App: React.FC = () => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setUrl(text.trim());
+        setUrlsInput((prev) => {
+          const trimmedPrev = prev.trim();
+          if (!trimmedPrev) return text.trim();
+          return `${trimmedPrev}\n${text.trim()}`;
+        });
       }
     } catch {
       // Ignore clipboard read rejection
@@ -39,79 +47,159 @@ export const App: React.FC = () => {
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rawUrl = url.trim();
-    if (!rawUrl) return;
+    const rawLines = urlsInput
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
+    if (rawLines.length === 0) return;
+
+    // Deduplicate while preserving order
+    const uniqueUrls = Array.from(new Set(rawLines));
+
+    const initialStates: VideoItemState[] = uniqueUrls.map((url) => ({
+      url,
+      loading: true,
+      metadata: null,
+      error: null
+    }));
+
+    setItems(initialStates);
     setLoading(true);
-    setMetadata(null);
     setStreamUrl(null);
+    setActivePreviewId(null);
     if (audioRef.current) {
       audioRef.current.pause();
     }
+
     setStatus({
-      title: 'ANALYZE IN PROGRESS',
-      desc: 'Querying yt-dlp to inspect stream audio manifests...',
+      title: 'BATCH ANALYSIS IN PROGRESS',
+      desc: `Inspecting audio manifests for ${uniqueUrls.length} URL${uniqueUrls.length > 1 ? 's' : ''}...`,
       showSpinner: true
     });
 
-    try {
-      const res = await fetch(`/api/info?url=${encodeURIComponent(rawUrl)}`);
-      const data = await res.json();
+    let successCount = 0;
+    let failCount = 0;
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to inspect stream audio');
-      }
+    await Promise.all(
+      uniqueUrls.map(async (rawUrl, index) => {
+        try {
+          const res = await fetch(`/api/info?url=${encodeURIComponent(rawUrl)}`);
+          const data = await res.json();
 
-      setMetadata(data as VideoMetadata);
-      setStatus(null);
-    } catch (err: any) {
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to inspect stream audio');
+          }
+
+          successCount++;
+          setItems((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? { ...item, loading: false, metadata: data as VideoMetadata, error: null }
+                : item
+            )
+          );
+        } catch (err: any) {
+          failCount++;
+          setItems((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? {
+                    ...item,
+                    loading: false,
+                    metadata: null,
+                    error: err.message || 'Unknown error occurred.'
+                  }
+                : item
+            )
+          );
+        }
+      })
+    );
+
+    setLoading(false);
+
+    if (failCount === 0) {
       setStatus({
-        title: 'ANALYSIS FAILED',
-        desc: err.message || 'Unknown error occurred.',
+        title: 'ANALYSIS COMPLETE',
+        desc: `Successfully analyzed ${successCount} stream${successCount > 1 ? 's' : ''}. Ready for high-fidelity Opus extraction.`,
+        isError: false,
+        showSpinner: false
+      });
+    } else if (successCount > 0) {
+      setStatus({
+        title: 'ANALYSIS PARTIALLY COMPLETED',
+        desc: `${successCount} streams ready, ${failCount} failed inspection.`,
         isError: true,
         showSpinner: false
       });
-    } finally {
-      setLoading(false);
+    } else {
+      setStatus({
+        title: 'ALL ANALYSES FAILED',
+        desc: 'Could not extract metadata for the provided URLs.',
+        isError: true,
+        showSpinner: false
+      });
     }
   };
 
-  const handleDownload = () => {
-    if (!metadata) return;
+  const downloadVideo = (meta: VideoMetadata, delayMs = 0) => {
+    setTimeout(() => {
+      const pageUrl = meta.webpageUrl;
+      const filename = `${meta.title}.opus`;
+      const downloadUrl = `/api/convert?url=${encodeURIComponent(pageUrl)}&bitrate=${encodeURIComponent(
+        bitrate
+      )}&download=true&filename=${encodeURIComponent(filename)}`;
 
-    const pageUrl = metadata.webpageUrl;
-    const filename = `${metadata.title}.opus`;
-    const downloadUrl = `/api/convert?url=${encodeURIComponent(pageUrl)}&bitrate=${encodeURIComponent(
-      bitrate
-    )}&download=true&filename=${encodeURIComponent(filename)}`;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, delayMs);
+  };
 
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
+  const handleDownloadSingle = (meta: VideoMetadata) => {
+    downloadVideo(meta);
     setStatus({
       title: 'STREAM CONVERSION TRIGGERED',
-      desc: 'Realtime ffmpeg transcode active. File will save directly to your storage.',
+      desc: `Realtime ffmpeg transcode active for "${meta.title}". Saving directly to storage.`,
       isError: false,
       showSpinner: false
     });
   };
 
-  const handleStreamPreview = () => {
-    if (!metadata) return;
+  const handleDownloadAll = () => {
+    const readyItems = items.filter((item) => item.metadata !== null);
+    if (readyItems.length === 0) return;
 
-    const pageUrl = metadata.webpageUrl;
+    readyItems.forEach((item, index) => {
+      if (item.metadata) {
+        // Space out downloads by 600ms to allow browser to register multiple downloads cleanly
+        downloadVideo(item.metadata, index * 600);
+      }
+    });
+
+    setStatus({
+      title: 'BATCH DOWNLOAD TRIGGERED',
+      desc: `Piping ${readyItems.length} Opus audio stream${readyItems.length > 1 ? 's' : ''} to browser storage.`,
+      isError: false,
+      showSpinner: false
+    });
+  };
+
+  const handleStreamPreview = (meta: VideoMetadata) => {
+    const pageUrl = meta.webpageUrl;
     const previewUrl = `/api/convert?url=${encodeURIComponent(pageUrl)}&bitrate=${encodeURIComponent(
       bitrate
     )}&download=false`;
 
+    setActivePreviewId(meta.id);
     setStreamUrl(previewUrl);
     setStatus({
       title: 'PLAYBACK ACTIVE',
-      desc: 'Realtime Opus stream piped through ffmpeg into browser audio engine.',
+      desc: `Previewing "${meta.title}" Opus audio stream piped through ffmpeg.`,
       isError: false,
       showSpinner: false
     });
@@ -122,6 +210,12 @@ export const App: React.FC = () => {
       }
     }, 50);
   };
+
+  const handleRemoveItem = (index: number) => {
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const readyCount = items.filter((item) => item.metadata !== null).length;
 
   return (
     <div className="app-wrapper">
@@ -146,7 +240,7 @@ export const App: React.FC = () => {
             YouTube <span className="hl">/</span> Opus Audio Extractor
           </h1>
           <p className="page-desc">
-            Direct-pipe yt-dlp & ffmpeg stream without intermediary disk writes.
+            Direct-pipe yt-dlp & ffmpeg stream without intermediary disk writes. Multi-URL batch enabled.
           </p>
         </div>
 
@@ -158,16 +252,16 @@ export const App: React.FC = () => {
           <div className="corner-br" />
 
           <form onSubmit={handleAnalyze}>
-            <div className="input-container">
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="Paste YouTube video or track URL..."
+            <div className="input-container multi-input-container">
+              <textarea
+                value={urlsInput}
+                onChange={(e) => setUrlsInput(e.target.value)}
+                placeholder="Insert one or multiple YouTube URLs (separated by new line)...&#10;https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."
                 required
+                rows={4}
                 autoComplete="off"
                 spellCheck="false"
-                className="kurzagin-input"
+                className="kurzagin-input kurzagin-textarea"
               />
               <button
                 type="button"
@@ -212,50 +306,17 @@ export const App: React.FC = () => {
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={16} />
-                  <span>ANALYZING STREAM...</span>
+                  <span>ANALYZING STREAMS...</span>
                 </>
               ) : (
                 <>
                   <Search size={16} />
-                  <span>ANALYZE STREAM</span>
+                  <span>ANALYZE STREAM(S)</span>
                 </>
               )}
             </button>
           </form>
         </div>
-
-        {/* Video Result Card */}
-        {metadata && (
-          <div className="result-card">
-            <div className="thumb-wrapper">
-              <img src={metadata.thumbnail} alt={metadata.title} className="thumb-img" />
-              <div className="thumb-duration">{metadata.durationFormatted}</div>
-            </div>
-
-            <div className="meta-details">
-              <div>
-                <h2 className="meta-title">{metadata.title}</h2>
-                <div className="meta-channel">{metadata.channel}</div>
-
-                <div className="badge-row">
-                  <span className="badge-item">{metadata.viewCountFormatted}</span>
-                  <span className="badge-item badge-accent">OPUS CODEC READY</span>
-                </div>
-              </div>
-
-              <div className="btn-row">
-                <button className="btn-action-primary" onClick={handleDownload}>
-                  <Download size={14} />
-                  <span>DOWNLOAD .OPUS</span>
-                </button>
-                <button className="btn-action-secondary" onClick={handleStreamPreview}>
-                  <Play size={14} />
-                  <span>PLAY PREVIEW</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Audio Player Container */}
         {streamUrl && (
@@ -269,10 +330,103 @@ export const App: React.FC = () => {
           <div className={`status-panel ${status.isError ? 'error' : ''}`}>
             {status.showSpinner && <Loader2 className="animate-spin" size={18} color="#c49368" />}
             {status.isError && <AlertCircle size={18} color="#b05050" />}
+            {!status.showSpinner && !status.isError && <CheckCircle2 size={18} color="#6a9a6a" />}
             <div>
               <div className="status-title">{status.title}</div>
               <div className="status-desc">{status.desc}</div>
             </div>
+          </div>
+        )}
+
+        {/* Batch Action Toolbar */}
+        {readyCount > 1 && (
+          <div className="batch-toolbar">
+            <div className="batch-count">
+              <span className="hl">{readyCount}</span> OF <span className="hl">{items.length}</span> STREAMS READY
+            </div>
+            <button className="btn-action-primary batch-download-btn" onClick={handleDownloadAll}>
+              <DownloadCloud size={15} />
+              <span>DOWNLOAD ALL ({readyCount})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Video Results List */}
+        {items.length > 0 && (
+          <div className="results-list">
+            {items.map((item, index) => {
+              if (item.loading) {
+                return (
+                  <div key={index} className="result-card loading-card">
+                    <Loader2 className="animate-spin" size={20} color="#c49368" />
+                    <div className="loading-url">{item.url}</div>
+                  </div>
+                );
+              }
+
+              if (item.error || !item.metadata) {
+                return (
+                  <div key={index} className="result-card error-card">
+                    <div className="meta-details">
+                      <div className="error-url">{item.url}</div>
+                      <div className="error-message">
+                        <AlertCircle size={14} color="#b05050" />
+                        <span>{item.error || 'Failed to inspect stream audio'}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-remove"
+                      onClick={() => handleRemoveItem(index)}
+                      title="Remove from list"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              }
+
+              const meta = item.metadata;
+              const isPlaying = activePreviewId === meta.id && streamUrl !== null;
+
+              return (
+                <div key={meta.id || index} className={`result-card ${isPlaying ? 'playing' : ''}`}>
+                  <div className="thumb-wrapper">
+                    <img src={meta.thumbnail} alt={meta.title} className="thumb-img" />
+                    <div className="thumb-duration">{meta.durationFormatted}</div>
+                  </div>
+
+                  <div className="meta-details">
+                    <div>
+                      <h2 className="meta-title">{meta.title}</h2>
+                      <div className="meta-channel">{meta.channel}</div>
+
+                      <div className="badge-row">
+                        <span className="badge-item">{meta.viewCountFormatted}</span>
+                        <span className="badge-item badge-accent">OPUS CODEC READY</span>
+                      </div>
+                    </div>
+
+                    <div className="btn-row">
+                      <button className="btn-action-primary" onClick={() => handleDownloadSingle(meta)}>
+                        <Download size={14} />
+                        <span>DOWNLOAD .OPUS</span>
+                      </button>
+                      <button className="btn-action-secondary" onClick={() => handleStreamPreview(meta)}>
+                        <Play size={14} />
+                        <span>{isPlaying ? 'REPLAY' : 'PLAY PREVIEW'}</span>
+                      </button>
+                      <button
+                        className="btn-remove"
+                        onClick={() => handleRemoveItem(index)}
+                        title="Remove from list"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -295,10 +449,10 @@ export const App: React.FC = () => {
           </div>
 
           <div className="info-item">
-            <div className="info-index">03 / COMPATIBILITY</div>
-            <div className="info-name">Universal Player</div>
+            <div className="info-index">03 / BATCH PIPELINE</div>
+            <div className="info-name">Multi-Track Extraction</div>
             <p className="info-desc">
-              Direct in-browser stream decoding with native HTML5 audio element preview.
+              Queue multiple YouTube links separated by newlines and batch extract or preview in parallel.
             </p>
           </div>
         </div>
