@@ -4,3 +4,17 @@ dist/
 .DS_Store
 .env
 .env.local
+
+# Expo & Metro
+.expo/
+web-build/
+
+# Android generated
+**/android/build/
+**/android/.gradle/
+**/android/app/build/
+**/android/.cxx/
+**/android/local.properties
+**/android/*.iml
+**/android/gradle/gradle-daemon-jvm.properties
+

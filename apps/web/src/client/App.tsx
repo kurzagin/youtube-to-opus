@@ -11,7 +11,7 @@ import {
   Trash2,
   CheckCircle2
 } from 'lucide-react';
-import type { VideoMetadata, VideoItemState } from '../shared/types.js';
+import type { VideoMetadata, VideoItemState } from '@youtube-to-opus/shared';
 
 export const App: React.FC = () => {
   const [urlsInput, setUrlsInput] = useState('');
@@ -224,25 +224,17 @@ export const App: React.FC = () => {
         <div className="nav-brand">
           <span className="dot" />
           <span>YOUTUBE-TO-OPUS</span>
-          <span className="jp">オーパス・コンバーター</span>
-        </div>
-        <div className="nav-status">
-          <span className="pulse" />
-          <span>ONLINE</span>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="main-content">
         <div className="page-header">
-          <div className="page-sub">OPUS AUDIO EXTRACTION TERMINAL</div>
           <h1 className="page-title">
             YouTube <span className="hl">/</span> Opus Audio Extractor
           </h1>
-          <p className="page-desc">
-            Direct-pipe yt-dlp & ffmpeg stream without intermediary disk writes. Multi-URL batch enabled.
-          </p>
         </div>
+
 
         {/* Input Card */}
         <div className="kurzagin-card">

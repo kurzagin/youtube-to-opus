@@ -1,0 +1,32 @@
+{
+  "name": "@youtube-to-opus/mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "prebuild": "expo prebuild --clean",
+    "build:apk": "cmd /c \"cd android && gradlew assembleRelease\"",
+    "build:debug": "cmd /c \"cd android && gradlew assembleDebug\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@youtube-to-opus/shared": "workspace:*",
+    "expo": "~58.0.22",
+    "expo-file-system": "~19.0.21",
+    "expo-modules-core": "~58.0.29",
+    "expo-status-bar": "~58.0.4",
+    "ffmpeg-kit-react-native": "^6.0.2",
+    "lucide-react-native": "^1.66.0",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-svg": "15.16.0",
+    "youtube-extractor": "file:./modules/youtube-extractor"
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "~10.0.0",
+    "@types/react": "^19.3.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.youtubeextractor'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.youtubeextractor"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  compileOnly "com.chaquo.python.runtime:chaquopy_java:17.2.0"
+}
+

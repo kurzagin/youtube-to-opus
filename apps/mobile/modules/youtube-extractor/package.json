@@ -1,0 +1,7 @@
+{
+  "name": "youtube-extractor",
+  "version": "1.0.0",
+  "description": "On-device YouTube extraction and media store bridge for Android",
+  "main": "index.ts",
+  "types": "index.ts"
+}

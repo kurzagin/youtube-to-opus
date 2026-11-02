@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import type { VideoMetadata } from '../shared/types.js';
+import type { VideoMetadata } from '@youtube-to-opus/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
