@@ -2,6 +2,10 @@
 
 A high-fidelity on-device audio downloader and transcoder monorepo containing a standalone Android application and a web client to convert YouTube streams into Opus audio (`.opus`).
 
+[![Latest Release](https://img.shields.io/github/v/release/kurzagin/youtube-to-opus?label=Release&color=blue)](https://github.com/kurzagin/youtube-to-opus/releases)
+
+> Download the prebuilt Android APK directly from [GitHub Releases](https://github.com/kurzagin/youtube-to-opus/releases).
+
 ---
 
 ## Overview
