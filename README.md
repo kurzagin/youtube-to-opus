@@ -1,60 +1,105 @@
-# YouTube to OPUS Web Client
+# YouTube to Opus
 
-A modern TypeScript web application to extract and stream high-fidelity **OPUS audio** directly from YouTube URLs using `yt-dlp` and `ffmpeg` with a Kurzagin-themed, mobile-responsive web UI.
-
----
-
-## Prerequisites
-
-Ensure the following tools and runtimes are installed on your system and accessible in your system `$PATH`:
-
-- **Node.js**: `v18.0.0` or higher ([nodejs.org](https://nodejs.org/))
-- **npm**: `v9.0.0` or higher (bundled with Node.js)
-- **yt-dlp**: Required to query video metadata and extract audio streams
-  - Linux: `sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp` or via package manager (`sudo apt install yt-dlp` / `brew install yt-dlp`)
-  - macOS: `brew install yt-dlp`
-  - Windows: `winget install yt-dlp` or `choco install yt-dlp`
-- **ffmpeg**: Required with `libopus` support enabled for on-the-fly audio transcoding
-  - Debian/Ubuntu: `sudo apt update && sudo apt install ffmpeg`
-  - macOS: `brew install ffmpeg`
-  - Windows: `winget install Gyan.FFmpeg` or `choco install ffmpeg`
+A high-fidelity on-device audio downloader and transcoder monorepo containing a standalone Android application and a web client to convert YouTube streams into Opus audio (`.opus`).
 
 ---
 
-## Features
+## Overview
 
-- **TypeScript Fullstack**: End-to-end typed interface with Express backend and Vite 8 + React 19 frontend.
-- **Direct OPUS Streaming & Download**: Pipes directly through `yt-dlp` and `ffmpeg` without storing intermediate files on disk, conserving disk space and delivering instant playback.
-- **Audio Quality Options**: Select between best direct stream (~160kbps VBR Opus) or target bitrates (192kbps, 128kbps, 96kbps, 64kbps).
-- **In-Browser Audio Preview**: Listen to the Opus stream directly in the browser before or alongside downloading.
-- **Mobile Responsive**: Fully adaptive UI optimized for mobile viewports, touch targets, and desktop displays.
-- **Kurzagin Design Aesthetic**: Dark dot-grid aesthetic, precision accents, and micro typographic details.
+- **Android Mobile App (`apps/mobile`)**: Runs an embedded Python runtime (`yt-dlp`) and native FFmpeg engine on-device to download and transcode audio directly without routing through external servers. Saves directly to the device's public `Music/YouTubeOpus` directory.
+- **Web Client (`apps/web`)**: A fullstack TypeScript application (Express + Vite + React) for streaming and downloading Opus audio in the browser.
 
 ---
 
-## Getting Started
+## Requirements
+
+### General
+- **[Bun](https://bun.sh/)** (version 1.1+ recommended) or **Node.js** (version 18+)
+
+### For Android Mobile App (`apps/mobile`)
+- **Android SDK** with:
+  - Build-Tools `35.0.0` or higher (e.g. `36.0.0` / `37.0.0`)
+  - Platform SDK `android-34` or `android-35`
+  - NDK `27.1.12297006` or higher
+- **JDK**: Java Development Kit 17+
+- **Python**: Python 3.10 to 3.14 (used by Chaquopy during build)
+
+### For Web App (`apps/web`)
+- **yt-dlp**: Required on the host machine ($PATH)
+- **ffmpeg**: Required with `libopus` support enabled ($PATH)
+
+---
+
+## Monorepo Structure
+
+```
+youtube-to-opus/
+├── apps/
+│   ├── mobile/                    # React Native / Expo Android application
+│   │   ├── assets/                # App icon and splash assets
+│   │   ├── modules/
+│   │   │   └── youtube-extractor/ # Native Kotlin module (Chaquopy & MediaStore)
+│   │   ├── plugins/
+│   │   │   └── withChaquopy.ts    # Config plugin for Chaquopy & FFmpegKit
+│   │   └── App.tsx                # Mobile application UI
+│   └── web/                       # Web application (Express backend + Vite React frontend)
+├── packages/
+│   └── shared/                    # Shared TypeScript types & interfaces
+├── bunfig.toml                    # Package manager configuration
+└── package.json                   # Workspaces and root scripts
+```
+
+---
+
+## Installation & Setup
 
 ### 1. Install Dependencies
 ```bash
-npm install
+bun install
 ```
 
-### 2. Development Mode (Runs Both Server & Client)
-Run both backend API and Vite UI simultaneously with one command:
+### 2. Mobile App (Android)
 
+#### Run in Development
 ```bash
-npm run dev
+bun run mobile
 ```
 
-- **Web UI**: `http://localhost:3000` (proxies API requests to backend)
-- **API Server**: `http://localhost:3001`
-
-### 3. Production Build & Start
+#### Prebuild Native Android Project
 ```bash
-npm run build
-npm start
+bun run mobile:prebuild
 ```
-The server will host both the API and client at `http://localhost:3001`.
+
+#### Build Release APK
+```bash
+bun run build:apk
+```
+The compiled APK will be output to:
+`apps/mobile/android/app/build/outputs/apk/release/app-release.apk`
+
+---
+
+### 3. Web Application
+
+#### Run Development Server (Backend + Frontend)
+```bash
+bun run dev:web
+```
+- Frontend: `http://localhost:3000`
+- API Server: `http://localhost:3001`
+
+#### Build for Production
+```bash
+bun run build:web
+```
+
+---
+
+## Tech Stack
+
+- **Mobile**: React Native 0.88, Expo SDK 58, Chaquopy 17.2.0 (Python 3.14), FFmpegKit 6.0.4 (`libopus`), TypeScript.
+- **Web**: Node.js, Express, Vite, React 19, Lucide Icons, TypeScript.
+- **Shared**: Shared TypeScript definitions package.
 
 ---
 

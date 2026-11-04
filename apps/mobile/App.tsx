@@ -9,7 +9,6 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  Switch,
   SafeAreaView,
   StatusBar as RNStatusBar,
   Platform,
@@ -27,7 +26,8 @@ import {
   CheckCircle2,
   DownloadCloud,
   ChevronDown,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react-native';
 import type { VideoMetadata, VideoItemState } from '@youtube-to-opus/shared';
 import {
@@ -40,8 +40,8 @@ import {
 
 const BITRATES = [
   { label: 'Best Direct Quality (~160kbps VBR Opus)', value: 'best' },
-  { label: '192 kbps (Audiophile Opus Re-encode)', value: '192' },
-  { label: '128 kbps (Standard Opus Delivery)', value: '128' },
+  { label: '192 kbps (Audiophile Opus)', value: '192' },
+  { label: '128 kbps (Standard Opus)', value: '128' },
   { label: '96 kbps (Compact Opus)', value: '96' },
   { label: '64 kbps (Voice / Lightweight)', value: '64' }
 ];
@@ -57,6 +57,7 @@ function formatDuration(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+
   if (hrs > 0) {
     return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
@@ -70,13 +71,34 @@ function formatViews(views: number): string {
   return `${views.toLocaleString()} views`;
 }
 
+function humanizeError(rawError: string): string {
+  const err = (rawError || '').toLowerCase();
+  if (err.includes('age') || err.includes('inappropriate') || err.includes('confirm your age')) {
+    return 'Age-restricted on YouTube. Please use the YouTube Music track or an unrestricted link.';
+  }
+  if (err.includes('unavailable') || err.includes('not found') || err.includes('private')) {
+    return 'This video is private, removed, or unavailable.';
+  }
+  if (err.includes('network') || err.includes('connection') || err.includes('timeout')) {
+    return 'Connection problem. Please check your internet connection.';
+  }
+  return 'Could not process video. Please check the URL and try again.';
+}
+
+interface ProgressState {
+  id: string;
+  step: string;
+  percent: number;
+}
+
 export default function App() {
   const [urlsInput, setUrlsInput] = useState('');
   const [bitrate, setBitrate] = useState('best');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [embedMetadata, setEmbedMetadata] = useState(true);
   const [loading, setLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [progressState, setProgressState] = useState<ProgressState | null>(null);
+  const [completedDownloads, setCompletedDownloads] = useState<Record<string, string>>({});
   const [items, setItems] = useState<VideoItemState[]>([]);
   const [status, setStatus] = useState<{
     title: string;
@@ -85,7 +107,6 @@ export default function App() {
     showSpinner?: boolean;
   } | null>(null);
 
-  // Initialize embedded python runtime and catch incoming Android share intents
   useEffect(() => {
     initPython().catch(() => {});
 
@@ -118,8 +139,8 @@ export default function App() {
     setLoading(true);
 
     setStatus({
-      title: 'LOCAL ANALYSIS IN PROGRESS',
-      desc: `Extracting manifests on-device with embedded yt-dlp (${uniqueUrls.length} stream${uniqueUrls.length > 1 ? 's' : ''})...`,
+      title: 'ANALYZING LINKS',
+      desc: `Looking up ${uniqueUrls.length} stream${uniqueUrls.length > 1 ? 's' : ''}...`,
       showSpinner: true
     });
 
@@ -140,7 +161,8 @@ export default function App() {
             durationFormatted: formatDuration(rawMeta.duration),
             viewCount: rawMeta.viewCount,
             viewCountFormatted: formatViews(rawMeta.viewCount),
-            webpageUrl: rawMeta.webpageUrl
+            webpageUrl: rawMeta.webpageUrl,
+            isAgeRestricted: !!rawMeta.isAgeRestricted
           };
 
           successCount++;
@@ -151,6 +173,7 @@ export default function App() {
           );
         } catch (err: any) {
           failCount++;
+          const cleanMessage = humanizeError(err.message || '');
           setItems((prev) =>
             prev.map((item, idx) =>
               idx === index
@@ -158,7 +181,7 @@ export default function App() {
                     ...item,
                     loading: false,
                     metadata: null,
-                    error: err.message || 'Failed to inspect stream audio with local yt-dlp.'
+                    error: cleanMessage
                   }
                 : item
             )
@@ -171,96 +194,127 @@ export default function App() {
 
     if (failCount === 0) {
       setStatus({
-        title: 'ANALYSIS COMPLETE',
-        desc: `Inspected ${successCount} stream${successCount > 1 ? 's' : ''} on-device. Ready for local FFmpeg Opus conversion.`,
+        title: 'READY TO DOWNLOAD',
+        desc: `${successCount} audio stream${successCount > 1 ? 's' : ''} ready to download.`,
         isError: false,
         showSpinner: false
       });
     } else if (successCount > 0) {
       setStatus({
-        title: 'ANALYSIS PARTIALLY COMPLETED',
-        desc: `${successCount} streams ready, ${failCount} failed.`,
-        isError: true,
+        title: 'SOME LINKS NEED ATTENTION',
+        desc: `${successCount} ready, ${failCount} need unrestricted links.`,
+        isError: false,
         showSpinner: false
       });
     } else {
       setStatus({
-        title: 'ALL ANALYSES FAILED',
-        desc: 'Could not extract metadata from the provided URLs.',
+        title: 'COULD NOT LOAD LINKS',
+        desc: 'Please verify the links or try unrestricted sources.',
         isError: true,
         showSpinner: false
       });
     }
   };
 
-  const executeLocalExtraction = async (meta: VideoMetadata) => {
+  const executeLocalDownload = async (meta: VideoMetadata) => {
+    if (meta.isAgeRestricted) {
+      Alert.alert(
+        'Age-Restricted Link',
+        'This video has a content warning on YouTube.\n\nPlease search for the song on YouTube Music or an alternate link to download cleanly.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     try {
       setDownloadingId(meta.id);
+      setProgressState({
+        id: meta.id,
+        step: 'Pulling audio stream...',
+        percent: 25
+      });
       setStatus({
-        title: 'DOWNLOADING STREAM ON-DEVICE',
-        desc: `Pulling audio directly from YouTube for "${meta.title}"...`,
+        title: 'DOWNLOADING AUDIO STREAM',
+        desc: `Downloading stream for "${meta.title}"...`,
         showSpinner: true
       });
 
       const sanitizedTitle = meta.title.replace(/[\\/:*?"<>|]/g, '_');
-      const cacheDir = Paths.cache.uri.replace(/\/+$/, '');
-      const rawTempPath = `${cacheDir}/temp_${meta.id}.raw`;
-      const opusTempPath = `${cacheDir}/${sanitizedTitle}.opus`;
+      const tempRawFile = new ExpoFile(Paths.cache, `temp_${meta.id}.raw`);
+      const tempOpusFile = new ExpoFile(Paths.cache, `${sanitizedTitle}.opus`);
+      const rawTempPath = tempRawFile.uri.replace(/^file:\/\//, '');
+      const opusTempPath = tempOpusFile.uri.replace(/^file:\/\//, '');
 
       // 1. Download raw stream using local embedded yt-dlp
       await downloadRawStreamOnDevice(meta.webpageUrl, rawTempPath);
 
+      setProgressState({
+        id: meta.id,
+        step: 'Converting to clean Opus audio...',
+        percent: 70
+      });
       setStatus({
-        title: 'TRANSCODING VIA EMBEDDED FFMPEG',
-        desc: `Encoding Opus stream locally (${bitrate === 'best' ? '~160k VBR' : `${bitrate}k`})...`,
+        title: 'CONVERTING TO OPUS',
+        desc: `Transcoding cleanly to Opus (${bitrate === 'best' ? '~160k VBR' : `${bitrate}k`})...`,
         showSpinner: true
       });
 
-      // 2. Transcode to high-fidelity Opus via embedded ffmpeg-kit
+      // 2. Transcode cleanly to Opus without extraneous tags
       const bArg = bitrate === 'best' ? '160k' : `${bitrate}k`;
-      const tagArgs = embedMetadata
-        ? `-metadata title="${meta.title.replace(/"/g, '\\"')}" -metadata artist="${meta.channel.replace(/"/g, '\\"')}"`
-        : '';
-      const ffmpegCmd = `-y -i "${rawTempPath}" -c:a libopus -b:a ${bArg} -vbr on ${tagArgs} "${opusTempPath}"`;
+      const ffmpegCmd = `-y -i "${rawTempPath}" -c:a libopus -b:a ${bArg} -vbr on "${opusTempPath}"`;
 
       const session = await FFmpegKit.execute(ffmpegCmd);
       const returnCode = await session.getReturnCode();
 
       if (!ReturnCode.isSuccess(returnCode)) {
-        throw new Error('Local FFmpeg transcode failed.');
+        throw new Error('Audio conversion failed. Please try again.');
       }
 
-      // 3. Save directly to Android Public Music Directory via Scoped Storage MediaStore
-      await saveAudioToMediaStore(opusTempPath, `${sanitizedTitle}.opus`);
+      setProgressState({
+        id: meta.id,
+        step: 'Saving to Music folder...',
+        percent: 90
+      });
+
+      // 3. Save directly to Android Public Music Directory via MediaStore
+      const finalFileName = `${sanitizedTitle}.opus`;
+      await saveAudioToMediaStore(opusTempPath, finalFileName);
+
+      // Save destination to state for non-modal confirmation
+      setCompletedDownloads((prev) => ({
+        ...prev,
+        [meta.id]: `Music/YouTubeOpus/${finalFileName}`
+      }));
+
+      setProgressState({
+        id: meta.id,
+        step: 'Complete',
+        percent: 100
+      });
 
       // Clean up temporary files
       try {
-        new ExpoFile(rawTempPath).delete();
-        new ExpoFile(opusTempPath).delete();
+        tempRawFile.delete();
+        tempOpusFile.delete();
       } catch {}
 
       setStatus({
-        title: 'SAVED TO MUSIC STORAGE',
-        desc: `"${meta.title}.opus" saved directly to your device's Music folder.`,
+        title: 'SAVED TO MUSIC FOLDER',
+        desc: `"${meta.title}.opus" is ready in your phone's Music directory.`,
         isError: false,
         showSpinner: false
       });
-
-      Alert.alert(
-        'Opus Audio Extracted',
-        `File saved directly to your phone's Music directory:\n\n${sanitizedTitle}.opus`,
-        [{ text: 'OK' }]
-      );
     } catch (err: any) {
+      const friendlyError = humanizeError(err.message || '');
       setStatus({
-        title: 'EXTRACTION FAILED',
-        desc: err.message || 'An error occurred during local extraction.',
+        title: 'DOWNLOAD INTERRUPTED',
+        desc: friendlyError,
         isError: true,
         showSpinner: false
       });
-      Alert.alert('Error', err.message || 'Extraction failed');
     } finally {
       setDownloadingId(null);
+      setTimeout(() => setProgressState(null), 1200);
     }
   };
 
@@ -274,25 +328,32 @@ export default function App() {
     setStatus(null);
   };
 
-  const readyCount = items.filter((item) => item.metadata !== null).length;
+  const downloadReadyItems = items.filter((item) => item.metadata !== null && !item.metadata.isAgeRestricted);
+  const readyCount = downloadReadyItems.length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
 
-      {/* Top Nav (Clean Kurzagin header without server config) */}
+      {/* Top Nav with Kur Cuneiform branding */}
       <View style={styles.topNav}>
         <View style={styles.navBrand}>
-          <View style={styles.dot} />
-          <Text style={styles.brandTitle}>YOUTUBE-TO-OPUS</Text>
+          <Text style={styles.cuneiformIcon}>𒆳</Text>
+          <View>
+            <Text style={styles.brandTitle}>YOUTUBE-TO-OPUS</Text>
+            <Text style={styles.brandAuthor}>MADE BY KUR ZAGIN</Text>
+          </View>
+        </View>
+        <View style={styles.navVersion}>
+          <Text style={styles.navVersionText}>v1.0.0</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Page Header (Title only) */}
+        {/* Page Header */}
         <View style={styles.pageHeader}>
           <Text style={styles.pageTitle}>
-            YouTube <Text style={styles.hl}>/</Text> Opus Audio Extractor
+            YouTube <Text style={styles.hl}>/</Text> Opus Downloader
           </Text>
         </View>
 
@@ -306,7 +367,7 @@ export default function App() {
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.kurzaginTextarea}
-              placeholder={'Insert one or multiple YouTube URLs (separated by new line)...\nhttps://www.youtube.com/watch?v=...\nhttps://youtu.be/...'}
+              placeholder={'Paste one or multiple YouTube URLs (one per line)...\nhttps://www.youtube.com/watch?v=...\nhttps://youtu.be/...'}
               placeholderTextColor="#4a4844"
               value={urlsInput}
               onChangeText={setUrlsInput}
@@ -317,12 +378,10 @@ export default function App() {
             />
           </View>
 
-          {/* Options Grid */}
+          {/* Bitrate Selection */}
           <View style={styles.optionsGrid}>
             <View style={styles.optionGroup}>
-              <Text style={styles.optionLabel}>AUDIO BITRATE / COMPRESSION</Text>
-
-              {/* Styled Dropdown Trigger */}
+              <Text style={styles.optionLabel}>OPUS AUDIO BITRATE</Text>
               <TouchableOpacity
                 style={[styles.kurzaginSelect, isDropdownOpen && styles.kurzaginSelectOpen]}
                 onPress={() => setIsDropdownOpen(true)}
@@ -333,16 +392,6 @@ export default function App() {
                 </Text>
                 <ChevronDown color="#c49368" size={14} />
               </TouchableOpacity>
-            </View>
-
-            <View style={styles.checkboxContainer}>
-              <Text style={styles.checkboxLabel}>EMBED TAGS / METADATA</Text>
-              <Switch
-                value={embedMetadata}
-                onValueChange={setEmbedMetadata}
-                thumbColor={embedMetadata ? '#c49368' : '#706c66'}
-                trackColor={{ false: '#1f1f24', true: 'rgba(196, 147, 104, 0.3)' }}
-              />
             </View>
           </View>
 
@@ -407,7 +456,7 @@ export default function App() {
             </TouchableWithoutFeedback>
           </Modal>
 
-          {/* Submit Action Buttons */}
+          {/* Action Buttons */}
           <View style={styles.btnActionRow}>
             <TouchableOpacity
               style={[
@@ -421,12 +470,12 @@ export default function App() {
               {loading ? (
                 <View style={styles.btnInner}>
                   <ActivityIndicator color="#0a0a0c" size="small" />
-                  <Text style={styles.btnSubmitText}>ANALYZING STREAMS...</Text>
+                  <Text style={styles.btnSubmitText}>LOOKING UP LINKS...</Text>
                 </View>
               ) : (
                 <View style={styles.btnInner}>
                   <Search color="#0a0a0c" size={15} />
-                  <Text style={styles.btnSubmitText}>ANALYZE STREAM(S)</Text>
+                  <Text style={styles.btnSubmitText}>FIND AUDIO</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -439,7 +488,7 @@ export default function App() {
           </View>
         </View>
 
-        {/* Status / Alert Notification */}
+        {/* Status Banner */}
         {status && (
           <View
             style={[
@@ -472,21 +521,21 @@ export default function App() {
         {readyCount > 1 && (
           <View style={styles.batchToolbar}>
             <Text style={styles.batchCountText}>
-              <Text style={styles.hl}>{readyCount}</Text> OF <Text style={styles.hl}>{items.length}</Text> STREAMS READY
+              <Text style={styles.hl}>{readyCount}</Text> READY TO DOWNLOAD
             </Text>
             <TouchableOpacity
               style={styles.batchDownloadBtn}
               onPress={async () => {
-                for (const item of items) {
+                for (const item of downloadReadyItems) {
                   if (item.metadata) {
-                    await executeLocalExtraction(item.metadata);
+                    await executeLocalDownload(item.metadata);
                   }
                 }
               }}
               activeOpacity={0.8}
             >
               <DownloadCloud color="#0a0a0c" size={14} />
-              <Text style={styles.batchDownloadText}>EXTRACT ALL ({readyCount})</Text>
+              <Text style={styles.batchDownloadText}>DOWNLOAD ALL ({readyCount})</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -512,8 +561,8 @@ export default function App() {
                     <View style={styles.metaDetails}>
                       <Text style={styles.errorUrl} numberOfLines={1}>{item.url}</Text>
                       <View style={styles.errorMsgRow}>
-                        <AlertCircle color="#b05050" size={13} />
-                        <Text style={styles.errorMsgText}>{item.error || 'Failed to inspect stream audio'}</Text>
+                        <AlertCircle color="#b05050" size={14} />
+                        <Text style={styles.errorMsgText}>{item.error || 'Could not load video'}</Text>
                       </View>
                     </View>
                     <TouchableOpacity
@@ -529,15 +578,21 @@ export default function App() {
 
               const meta = item.metadata;
               const isProcessingThis = downloadingId === meta.id;
+              const isAgeRestricted = !!meta.isAgeRestricted;
+              const savedPath = completedDownloads[meta.id];
 
               return (
-                <View key={meta.id || index} style={styles.resultCard}>
-                  <View style={styles.thumbWrapper}>
-                    <Image source={{ uri: meta.thumbnail }} style={styles.thumbImg} />
-                    <View style={styles.thumbDuration}>
-                      <Text style={styles.thumbDurationText}>{meta.durationFormatted}</Text>
+                <View key={meta.id || index} style={[styles.resultCard, isAgeRestricted && styles.ageRestrictedCard]}>
+                  {meta.thumbnail ? (
+                    <View style={styles.thumbWrapper}>
+                      <Image source={{ uri: meta.thumbnail }} style={styles.thumbImg} />
+                      {meta.durationFormatted && meta.durationFormatted !== '0:00' ? (
+                        <View style={styles.thumbDuration}>
+                          <Text style={styles.thumbDurationText}>{meta.durationFormatted}</Text>
+                        </View>
+                      ) : null}
                     </View>
-                  </View>
+                  ) : null}
 
                   <View style={styles.metaDetails}>
                     <Text style={styles.metaTitle} numberOfLines={2}>
@@ -545,29 +600,81 @@ export default function App() {
                     </Text>
                     <Text style={styles.metaChannel}>{meta.channel}</Text>
 
-                    <View style={styles.badgeRow}>
-                      <View style={styles.badgeItem}>
-                        <Text style={styles.badgeItemText}>{meta.viewCountFormatted}</Text>
+                    {/* Age Restriction Warning Banner */}
+                    {isAgeRestricted ? (
+                      <View style={styles.ageWarningBanner}>
+                        <AlertTriangle color="#c49368" size={14} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.ageWarningTitle}>Age-Restricted Video</Text>
+                          <Text style={styles.ageWarningDesc}>
+                            This video has a YouTube content warning. Please use the YouTube Music track or an alternate link to download.
+                          </Text>
+                        </View>
                       </View>
-                      <View style={[styles.badgeItem, styles.badgeAccent]}>
-                        <Text style={styles.badgeAccentText}>LOCAL LIBOPUS</Text>
+                    ) : (
+                      <View style={styles.badgeRow}>
+                        {meta.viewCountFormatted ? (
+                          <View style={styles.badgeItem}>
+                            <Text style={styles.badgeItemText}>{meta.viewCountFormatted}</Text>
+                          </View>
+                        ) : null}
+                        <View style={[styles.badgeItem, styles.badgeAccent]}>
+                          <Text style={styles.badgeAccentText}>CLEAN OPUS AUDIO</Text>
+                        </View>
                       </View>
-                    </View>
+                    )}
+
+                    {/* Download Progress Bar */}
+                    {isProcessingThis && progressState && progressState.id === meta.id && (
+                      <View style={styles.progressContainer}>
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${progressState.percent}%` }]} />
+                        </View>
+                        <Text style={styles.progressLabel}>
+                          {progressState.percent}% · {progressState.step}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* In-Card Completion Banner (Replaces Native Alert) */}
+                    {savedPath && (
+                      <View style={styles.completedBanner}>
+                        <CheckCircle2 color="#6a9a6a" size={15} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.completedBannerTitle}>DOWNLOAD COMPLETE</Text>
+                          <Text style={styles.completedBannerDesc} numberOfLines={1}>
+                            Saved to {savedPath}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
 
                     <View style={styles.btnRow}>
                       <TouchableOpacity
-                        style={[styles.btnActionPrimary, isProcessingThis && styles.btnDisabled]}
-                        disabled={isProcessingThis}
-                        onPress={() => executeLocalExtraction(meta)}
+                        style={[
+                          styles.btnActionPrimary,
+                          (isProcessingThis || isAgeRestricted) && styles.btnDisabled,
+                          savedPath && styles.btnActionCompleted
+                        ]}
+                        disabled={isProcessingThis || isAgeRestricted}
+                        onPress={() => executeLocalDownload(meta)}
                         activeOpacity={0.8}
                       >
                         {isProcessingThis ? (
                           <ActivityIndicator color="#e2ded6" size="small" />
+                        ) : savedPath ? (
+                          <Check color="#6a9a6a" size={13} />
                         ) : (
                           <Download color="#e2ded6" size={13} />
                         )}
-                        <Text style={styles.btnActionPrimaryText}>
-                          {isProcessingThis ? 'PROCESSING...' : 'EXTRACT TO STORAGE'}
+                        <Text style={[styles.btnActionPrimaryText, savedPath && styles.btnTextCompleted]}>
+                          {isAgeRestricted
+                            ? 'USE MUSIC / ALTERNATE URL'
+                            : isProcessingThis
+                            ? 'DOWNLOADING...'
+                            : savedPath
+                            ? 'DOWNLOAD AGAIN'
+                            : 'DOWNLOAD TO STORAGE'}
                         </Text>
                       </TouchableOpacity>
 
@@ -586,38 +693,37 @@ export default function App() {
           </View>
         )}
 
-        {/* Info Grid */}
+        {/* Feature / Info Section */}
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
-            <Text style={styles.infoIndex}>01 / STANDALONE</Text>
-            <Text style={styles.infoName}>Embedded Python & yt-dlp</Text>
+            <Text style={styles.infoIndex}>01 / FAST & DIRECT</Text>
+            <Text style={styles.infoName}>On-Device Audio Extraction</Text>
             <Text style={styles.infoDesc}>
-              Runs an in-app CPython runtime to resolve YouTube audio streams directly without any external server.
+              Downloads audio directly on your device without routing through external servers.
             </Text>
           </View>
 
           <View style={styles.infoItem}>
-            <Text style={styles.infoIndex}>02 / ON-DEVICE</Text>
-            <Text style={styles.infoName}>Native FFmpeg Transcode</Text>
+            <Text style={styles.infoIndex}>02 / CLEAN OPUS</Text>
+            <Text style={styles.infoName}>Pure Audio Encoding</Text>
             <Text style={styles.infoDesc}>
-              Transcodes audio directly to high-density Opus format on your phone's processor using libopus.
+              Converts to pristine Opus audio using hardware-accelerated libopus.
             </Text>
           </View>
 
           <View style={styles.infoItem}>
             <Text style={styles.infoIndex}>03 / STORAGE</Text>
-            <Text style={styles.infoName}>Android Scoped MediaStore</Text>
+            <Text style={styles.infoName}>Music Library Integration</Text>
             <Text style={styles.infoDesc}>
-              Automatically saves exported .opus files to your public Music/YouTubeOpus directory for music players.
+              Saves exported .opus files directly to your device's Music folder for immediate playback in your music player.
             </Text>
           </View>
         </View>
 
         {/* Footer */}
         <View style={styles.siteFooter}>
-          <Text style={styles.footerText}>
-            Standalone On-Device Architecture · React Native · Chaquopy · FFmpegKit
-          </Text>
+          <Text style={styles.footerBrand}>𒆳 KUR · YOUTUBE-TO-OPUS</Text>
+          <Text style={styles.footerAuthor}>MADE BY KUR ZAGIN</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -637,7 +743,7 @@ const styles = StyleSheet.create({
 
   /* Top Nav */
   topNav: {
-    height: 48,
+    height: 52,
     backgroundColor: 'rgba(10, 10, 12, 0.98)',
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a30',
@@ -649,42 +755,38 @@ const styles = StyleSheet.create({
   navBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 10
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#c49368'
+  cuneiformIcon: {
+    fontSize: 22,
+    color: '#c49368',
+    lineHeight: 26
   },
   brandTitle: {
     fontFamily: MONO_FONT,
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '700',
     color: '#e2ded6',
     letterSpacing: 1
   },
-  navStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    backgroundColor: '#1f1f24',
+  brandAuthor: {
+    fontFamily: MONO_FONT,
+    fontSize: 8,
+    color: '#c49368',
+    letterSpacing: 1.2,
+    marginTop: 1
+  },
+  navVersion: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#18181c',
     borderWidth: 1,
     borderColor: '#2a2a30'
   },
-  pulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#6a9a6a'
-  },
-  statusOnlineText: {
+  navVersionText: {
     fontFamily: MONO_FONT,
-    fontSize: 10,
-    color: '#b0aca4',
-    letterSpacing: 0.5
+    fontSize: 9,
+    color: '#706c66'
   },
 
   /* Page Header */
@@ -741,8 +843,7 @@ const styles = StyleSheet.create({
   },
 
   optionsGrid: {
-    marginBottom: 16,
-    gap: 12
+    marginBottom: 16
   },
   optionGroup: {
     gap: 6
@@ -839,19 +940,6 @@ const styles = StyleSheet.create({
   dropdownItemTextSelected: {
     color: '#c49368',
     fontWeight: '600'
-  },
-
-  checkboxContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 4
-  },
-  checkboxLabel: {
-    fontFamily: MONO_FONT,
-    fontSize: 11,
-    color: '#b0aca4',
-    letterSpacing: 0.5
   },
 
   btnActionRow: {
@@ -964,6 +1052,10 @@ const styles = StyleSheet.create({
     borderColor: '#2a2a30',
     padding: 14
   },
+  ageRestrictedCard: {
+    borderColor: '#c49368',
+    backgroundColor: 'rgba(196, 147, 104, 0.03)'
+  },
   loadingCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -991,12 +1083,15 @@ const styles = StyleSheet.create({
   errorMsgRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6
+    gap: 6,
+    marginTop: 2
   },
   errorMsgText: {
     fontFamily: MONO_FONT,
     fontSize: 11,
-    color: '#b05050'
+    color: '#b05050',
+    flex: 1,
+    lineHeight: 15
   },
 
   thumbWrapper: {
@@ -1045,6 +1140,31 @@ const styles = StyleSheet.create({
     color: '#706c66',
     marginBottom: 10
   },
+
+  /* Age Warning Banner */
+  ageWarningBanner: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 10,
+    backgroundColor: 'rgba(196, 147, 104, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(196, 147, 104, 0.4)',
+    marginBottom: 12
+  },
+  ageWarningTitle: {
+    fontFamily: MONO_FONT,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#c49368',
+    marginBottom: 2
+  },
+  ageWarningDesc: {
+    fontSize: 11,
+    color: '#e2ded6',
+    lineHeight: 15
+  },
+
+  /* Badges */
   badgeRow: {
     flexDirection: 'row',
     gap: 6,
@@ -1072,6 +1192,50 @@ const styles = StyleSheet.create({
     color: '#c49368'
   },
 
+  /* Progress Bar */
+  progressContainer: {
+    marginBottom: 12
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: '#1e1e24',
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#c49368'
+  },
+  progressLabel: {
+    fontFamily: MONO_FONT,
+    fontSize: 10,
+    color: '#c49368',
+    marginTop: 4
+  },
+
+  /* In-Card Completion Banner */
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 9,
+    backgroundColor: 'rgba(106, 154, 106, 0.1)',
+    borderWidth: 1,
+    borderColor: '#6a9a6a',
+    marginBottom: 12
+  },
+  completedBannerTitle: {
+    fontFamily: MONO_FONT,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6a9a6a'
+  },
+  completedBannerDesc: {
+    fontFamily: MONO_FONT,
+    fontSize: 10,
+    color: '#b0aca4',
+    marginTop: 1
+  },
+
   btnRow: {
     flexDirection: 'row',
     gap: 8
@@ -1081,11 +1245,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f1f24',
     borderWidth: 1,
     borderColor: '#2a2a30',
-    paddingVertical: 8,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6
+  },
+  btnActionCompleted: {
+    backgroundColor: '#152015',
+    borderColor: '#6a9a6a'
   },
   btnActionPrimaryText: {
     fontFamily: MONO_FONT,
@@ -1093,6 +1261,9 @@ const styles = StyleSheet.create({
     color: '#e2ded6',
     letterSpacing: 0.5,
     textTransform: 'uppercase'
+  },
+  btnTextCompleted: {
+    color: '#6a9a6a'
   },
   btnRemove: {
     backgroundColor: '#0a0a0c',
@@ -1138,15 +1309,22 @@ const styles = StyleSheet.create({
   /* Footer */
   siteFooter: {
     marginTop: 32,
-    paddingVertical: 18,
+    paddingVertical: 20,
     borderTopWidth: 1,
     borderTopColor: '#1e1e24',
-    alignItems: 'center'
+    alignItems: 'center',
+    gap: 4
   },
-  footerText: {
+  footerBrand: {
     fontFamily: MONO_FONT,
-    fontSize: 10,
-    color: '#4a4844',
-    textAlign: 'center'
+    fontSize: 11,
+    color: '#e2ded6',
+    letterSpacing: 1
+  },
+  footerAuthor: {
+    fontFamily: MONO_FONT,
+    fontSize: 9,
+    color: '#c49368',
+    letterSpacing: 1.5
   }
 });

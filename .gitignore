@@ -1,15 +1,49 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build artifacts & distributions
 dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# Package / Binary outputs
+*.apk
+*.aab
+*.orig.*
+
+# Keystores & credentials
+*.jks
+*.keystore
+!**/android/app/debug.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+
+# Logs
 *.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Environment files
 .env
 .env.local
+.env.*.local
 
 # Expo & Metro
 .expo/
-web-build/
+.metro-health-check*
+expo-env.d.ts
 
-# Android generated
+# Android build outputs & local config
 **/android/build/
 **/android/.gradle/
 **/android/app/build/
@@ -17,4 +51,5 @@ web-build/
 **/android/local.properties
 **/android/*.iml
 **/android/gradle/gradle-daemon-jvm.properties
-
+.kotlin/
+.cxx/

@@ -8,6 +8,7 @@ export interface NativeVideoMetadata {
   duration: number;
   viewCount: number;
   webpageUrl: string;
+  isAgeRestricted?: boolean;
 }
 
 interface YoutubeExtractorInterface {

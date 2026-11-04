@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "@youtube-to-opus/shared": "workspace:*",
-    "expo": "~58.0.22",
-    "expo-file-system": "~19.0.21",
-    "expo-modules-core": "~58.0.29",
+    "expo": "~58.0.23",
+    "expo-file-system": "~58.0.13",
+    "expo-modules-core": "~58.0.30",
     "expo-status-bar": "~58.0.4",
     "ffmpeg-kit-react-native": "^6.0.2",
     "lucide-react-native": "^1.66.0",
@@ -25,8 +25,8 @@
     "youtube-extractor": "file:./modules/youtube-extractor"
   },
   "devDependencies": {
-    "@expo/config-plugins": "~10.0.0",
+    "@expo/config-plugins": "~58.0.0",
     "@types/react": "^19.3.0",
-    "typescript": "^5.7.3"
+    "typescript": "~6.0.3"
   }
 }

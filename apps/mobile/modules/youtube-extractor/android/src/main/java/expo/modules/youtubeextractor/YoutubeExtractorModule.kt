@@ -42,16 +42,21 @@ class YoutubeExtractorModule : Module() {
             if (!Python.isStarted()) {
                 Python.start(AndroidPlatform(context))
             }
+            val cleanPath = if (tempFilePath.startsWith("file://")) tempFilePath.removePrefix("file://") else tempFilePath
+            val outFile = File(cleanPath)
+            outFile.parentFile?.mkdirs()
+
             val py = Python.getInstance()
             val ytdlpModule = py.getModule("ytdlp_runner")
-            ytdlpModule.callAttr("download_audio_stream", url, tempFilePath)
+            ytdlpModule.callAttr("download_audio_stream", url, cleanPath)
             return@AsyncFunction true
         }
 
         AsyncFunction("saveToMediaStore") { tempFilePath: String, filename: String ->
-            val srcFile = File(tempFilePath)
+            val cleanPath = if (tempFilePath.startsWith("file://")) tempFilePath.removePrefix("file://") else tempFilePath
+            val srcFile = File(cleanPath)
             if (!srcFile.exists()) {
-                throw IllegalStateException("Source audio file does not exist at: $tempFilePath")
+                throw IllegalStateException("Source audio file does not exist at: $cleanPath")
             }
 
             val values = ContentValues().apply {

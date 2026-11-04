@@ -8,6 +8,7 @@ export interface VideoMetadata {
   viewCount: number;
   viewCountFormatted: string;
   webpageUrl: string;
+  isAgeRestricted?: boolean;
 }
 
 export interface VideoItemState {
