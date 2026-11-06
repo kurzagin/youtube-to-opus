@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { 
-  Music, 
   Search, 
   Download, 
   Play, 
@@ -11,6 +10,15 @@ import {
   Trash2,
   CheckCircle2
 } from 'lucide-react';
+import { 
+  Button, 
+  BracketCard, 
+  CornerFrame, 
+  Badge, 
+  Dot, 
+  TechLabel, 
+  Logo 
+} from '@kurzagin/ui';
 import type { VideoMetadata, VideoItemState } from '@youtube-to-opus/shared';
 
 export const App: React.FC = () => {
@@ -218,31 +226,35 @@ export const App: React.FC = () => {
   const readyCount = items.filter((item) => item.metadata !== null).length;
 
   return (
-    <div className="app-wrapper">
+    <div className="app-wrapper kz-dot-grid">
       {/* Top Nav */}
       <header className="top-nav">
         <div className="nav-brand">
-          <span className="dot" />
-          <span>YOUTUBE-TO-OPUS</span>
+          <Logo size={22} color="var(--kz-accent)" />
+          <span className="nav-title">YOUTUBE-TO-OPUS</span>
+        </div>
+        <div className="nav-status">
+          <TechLabel label="OPUS VBR PIPELINE" jp="高音質" coord="48kHz // DIRECT" />
         </div>
       </header>
 
       {/* Main Content */}
       <main className="main-content">
         <div className="page-header">
+          <div className="header-meta">
+            <Dot color="accent" pulse />
+            <TechLabel label="AUDIO STREAM INGESTION" jp="抽出処理" coord="01 // AUDIO" />
+          </div>
           <h1 className="page-title">
             YouTube <span className="hl">/</span> Opus Audio Extractor
           </h1>
+          <p className="page-subtitle">
+            Pure pipe-through audio extraction powered by @kurzagin/ui design system.
+          </p>
         </div>
 
-
-        {/* Input Card */}
-        <div className="kurzagin-card">
-          <div className="corner-tl" />
-          <div className="corner-tr" />
-          <div className="corner-bl" />
-          <div className="corner-br" />
-
+        {/* Input Card with CornerFrame */}
+        <CornerFrame className="kurzagin-card input-card">
           <form onSubmit={handleAnalyze}>
             <div className="input-container multi-input-container">
               <textarea
@@ -255,15 +267,17 @@ export const App: React.FC = () => {
                 spellCheck="false"
                 className="kurzagin-input kurzagin-textarea"
               />
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 className="btn-paste"
                 onClick={handlePaste}
                 title="Paste from clipboard"
               >
                 <Clipboard size={14} />
                 <span>PASTE</span>
-              </button>
+              </Button>
             </div>
 
             <div className="options-grid">
@@ -294,7 +308,13 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn-submit" disabled={loading}>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              size="lg" 
+              className="btn-submit" 
+              disabled={loading}
+            >
               {loading ? (
                 <>
                   <Loader2 className="animate-spin" size={16} />
@@ -306,40 +326,45 @@ export const App: React.FC = () => {
                   <span>ANALYZE STREAM(S)</span>
                 </>
               )}
-            </button>
+            </Button>
           </form>
-        </div>
+        </CornerFrame>
 
         {/* Audio Player Container */}
         {streamUrl && (
-          <div className="player-box">
+          <BracketCard className="player-box">
             <audio ref={audioRef} controls src={streamUrl} />
-          </div>
+          </BracketCard>
         )}
 
         {/* Status / Alert Notification */}
         {status && (
-          <div className={`status-panel ${status.isError ? 'error' : ''}`}>
-            {status.showSpinner && <Loader2 className="animate-spin" size={18} color="#c49368" />}
-            {status.isError && <AlertCircle size={18} color="#b05050" />}
-            {!status.showSpinner && !status.isError && <CheckCircle2 size={18} color="#6a9a6a" />}
+          <BracketCard className={`status-panel ${status.isError ? 'error' : ''}`}>
+            {status.showSpinner && <Dot color="accent" pulse />}
+            {status.isError && <AlertCircle size={18} color="var(--kz-red-soft)" />}
+            {!status.showSpinner && !status.isError && <CheckCircle2 size={18} color="var(--kz-green-soft)" />}
             <div>
               <div className="status-title">{status.title}</div>
               <div className="status-desc">{status.desc}</div>
             </div>
-          </div>
+          </BracketCard>
         )}
 
         {/* Batch Action Toolbar */}
         {readyCount > 1 && (
           <div className="batch-toolbar">
             <div className="batch-count">
-              <span className="hl">{readyCount}</span> OF <span className="hl">{items.length}</span> STREAMS READY
+              <Badge variant="accent">{readyCount}</Badge> OF <Badge variant="default">{items.length}</Badge> STREAMS READY
             </div>
-            <button className="btn-action-primary batch-download-btn" onClick={handleDownloadAll}>
+            <Button 
+              variant="primary" 
+              size="md" 
+              className="batch-download-btn" 
+              onClick={handleDownloadAll}
+            >
               <DownloadCloud size={15} />
               <span>DOWNLOAD ALL ({readyCount})</span>
-            </button>
+            </Button>
           </div>
         )}
 
@@ -349,31 +374,33 @@ export const App: React.FC = () => {
             {items.map((item, index) => {
               if (item.loading) {
                 return (
-                  <div key={index} className="result-card loading-card">
-                    <Loader2 className="animate-spin" size={20} color="#c49368" />
+                  <BracketCard key={index} className="result-card loading-card">
+                    <Loader2 className="animate-spin" size={20} color="var(--kz-accent)" />
                     <div className="loading-url">{item.url}</div>
-                  </div>
+                  </BracketCard>
                 );
               }
 
               if (item.error || !item.metadata) {
                 return (
-                  <div key={index} className="result-card error-card">
+                  <BracketCard key={index} className="result-card error-card">
                     <div className="meta-details">
                       <div className="error-url">{item.url}</div>
                       <div className="error-message">
-                        <AlertCircle size={14} color="#b05050" />
+                        <AlertCircle size={14} color="var(--kz-red-soft)" />
                         <span>{item.error || 'Failed to inspect stream audio'}</span>
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="btn-remove"
                       onClick={() => handleRemoveItem(index)}
                       title="Remove from list"
                     >
                       <Trash2 size={14} />
-                    </button>
-                  </div>
+                    </Button>
+                  </BracketCard>
                 );
               }
 
@@ -381,7 +408,10 @@ export const App: React.FC = () => {
               const isPlaying = activePreviewId === meta.id && streamUrl !== null;
 
               return (
-                <div key={meta.id || index} className={`result-card ${isPlaying ? 'playing' : ''}`}>
+                <CornerFrame 
+                  key={meta.id || index} 
+                  className={`result-card ${isPlaying ? 'playing' : ''}`}
+                >
                   <div className="thumb-wrapper">
                     <img src={meta.thumbnail} alt={meta.title} className="thumb-img" />
                     <div className="thumb-duration">{meta.durationFormatted}</div>
@@ -393,30 +423,40 @@ export const App: React.FC = () => {
                       <div className="meta-channel">{meta.channel}</div>
 
                       <div className="badge-row">
-                        <span className="badge-item">{meta.viewCountFormatted}</span>
-                        <span className="badge-item badge-accent">OPUS CODEC READY</span>
+                        <Badge variant="default">{meta.viewCountFormatted}</Badge>
+                        <Badge variant="accent">OPUS CODEC READY</Badge>
                       </div>
                     </div>
 
                     <div className="btn-row">
-                      <button className="btn-action-primary" onClick={() => handleDownloadSingle(meta)}>
+                      <Button 
+                        variant="primary" 
+                        size="sm" 
+                        onClick={() => handleDownloadSingle(meta)}
+                      >
                         <Download size={14} />
                         <span>DOWNLOAD .OPUS</span>
-                      </button>
-                      <button className="btn-action-secondary" onClick={() => handleStreamPreview(meta)}>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleStreamPreview(meta)}
+                      >
                         <Play size={14} />
                         <span>{isPlaying ? 'REPLAY' : 'PLAY PREVIEW'}</span>
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="btn-remove"
                         onClick={() => handleRemoveItem(index)}
                         title="Remove from list"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
-                </div>
+                </CornerFrame>
               );
             })}
           </div>
@@ -424,35 +464,40 @@ export const App: React.FC = () => {
 
         {/* Info Grid */}
         <div className="info-grid">
-          <div className="info-item">
-            <div className="info-index">01 / ENCODING</div>
+          <BracketCard className="info-item">
+            <TechLabel label="ENCODING" jp="高密度" coord="01" />
             <div className="info-name">High-Density Opus</div>
             <p className="info-desc">
               Pipes original audio manifests straight through libopus without intermediate file caching.
             </p>
-          </div>
+          </BracketCard>
 
-          <div className="info-item">
-            <div className="info-index">02 / REALTIME</div>
+          <BracketCard className="info-item">
+            <TechLabel label="REALTIME" jp="即時" coord="02" />
             <div className="info-name">Stream Piping</div>
             <p className="info-desc">
               Zero storage bottleneck — child processes pipe straight into the HTTP response stream.
             </p>
-          </div>
+          </BracketCard>
 
-          <div className="info-item">
-            <div className="info-index">03 / BATCH PIPELINE</div>
+          <BracketCard className="info-item">
+            <TechLabel label="BATCH" jp="一括" coord="03" />
             <div className="info-name">Multi-Track Extraction</div>
             <p className="info-desc">
               Queue multiple YouTube links separated by newlines and batch extract or preview in parallel.
             </p>
-          </div>
+          </BracketCard>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="site-footer">
-        kurzagin-themed architecture · TypeScript · Vite · React 19
+        <div className="footer-content">
+          <Logo size={16} color="var(--kz-text-2)" />
+          <span>Powered by @kurzagin/ui Design System</span>
+          <span className="hl">·</span>
+          <span>TypeScript · Vite · React 19</span>
+        </div>
       </footer>
     </div>
   );

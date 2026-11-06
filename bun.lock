@@ -34,6 +34,7 @@
       "name": "@youtube-to-opus/web",
       "version": "1.0.0",
       "dependencies": {
+        "@kurzagin/ui": "github:kurzagin/ui#pkg",
         "@youtube-to-opus/shared": "workspace:*",
         "cors": "^2.8.5",
         "express": "^4.21.2",
@@ -336,6 +337,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.6.0", "", {}, "sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@kurzagin/ui": ["@kurzagin/ui@github:kurzagin/ui#1cd2215", { "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" }, "optionalPeers": ["react", "react-dom"] }, "kurzagin-ui-1cd2215", "sha512-laVspAAoL68d2T2Rm7OyGZC+GbcRObuahJ3RjUPPTzKWS4Pc5n0jVahki2Oqt4qq9OvwEeXPiMKMBOYhJKIbWg=="],
 
     "@noxcturnal/noxcturnal-darwin-arm64": ["@noxcturnal/noxcturnal-darwin-arm64@0.1.11", "", { "os": "darwin", "cpu": "arm64" }, "sha512-tqvZOVmSoiJzm7QjQ+whPxCP45J2C1zCAZnzc1HhwmJrFIWw/qyA8o9Cup0aVqnjNVAN+as9GHX+DbAmkCbGlQ=="],
 
