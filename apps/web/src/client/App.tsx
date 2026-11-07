@@ -18,7 +18,7 @@ import {
   Dot, 
   TechLabel, 
   Logo 
-} from '@kurzagin/ui';
+} from '@krpkg/ui';
 import type { VideoMetadata, VideoItemState } from '@youtube-to-opus/shared';
 
 export const App: React.FC = () => {
@@ -249,7 +249,7 @@ export const App: React.FC = () => {
             YouTube <span className="hl">/</span> Opus Audio Extractor
           </h1>
           <p className="page-subtitle">
-            Pure pipe-through audio extraction powered by @kurzagin/ui design system.
+            Pure pipe-through audio extraction powered by @krpkg/ui design system.
           </p>
         </div>
 
@@ -494,7 +494,7 @@ export const App: React.FC = () => {
       <footer className="site-footer">
         <div className="footer-content">
           <Logo size={16} color="var(--kz-text-2)" />
-          <span>Powered by @kurzagin/ui Design System</span>
+          <span>Powered by @krpkg/ui Design System</span>
           <span className="hl">·</span>
           <span>TypeScript · Vite · React 19</span>
         </div>

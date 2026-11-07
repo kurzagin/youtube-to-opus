@@ -34,7 +34,7 @@
       "name": "@youtube-to-opus/web",
       "version": "1.0.0",
       "dependencies": {
-        "@kurzagin/ui": "github:kurzagin/ui#pkg",
+        "@krpkg/ui": "github:krpkg/ui",
         "@youtube-to-opus/shared": "workspace:*",
         "cors": "^2.8.5",
         "express": "^4.21.2",
@@ -338,7 +338,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@kurzagin/ui": ["@kurzagin/ui@github:kurzagin/ui#fb83c0e", { "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" }, "optionalPeers": ["react", "react-dom"] }, "kurzagin-ui-fb83c0e", "sha512-oL5259rVV0bDSbkX+m0UeARs2WPSNzijXruaN/FEyMORNboXuoW73e3puX5KTGuvzu3bLw8jLhnwsbu3hhKMAQ=="],
+    "@krpkg/ui": ["@krpkg/ui@github:krpkg/ui#834b579", { "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" }, "optionalPeers": ["react", "react-dom"] }, "krpkg-ui-834b579", "sha512-k47Y8nXlRnXHuNuBUiekxTldbT95mXqbYo9rx91eTR0sMlRysLXmBMVBjWXfp/JmX+7VN0lheNmo/ogJTUycvQ=="],
 
     "@noxcturnal/noxcturnal-darwin-arm64": ["@noxcturnal/noxcturnal-darwin-arm64@0.1.11", "", { "os": "darwin", "cpu": "arm64" }, "sha512-tqvZOVmSoiJzm7QjQ+whPxCP45J2C1zCAZnzc1HhwmJrFIWw/qyA8o9Cup0aVqnjNVAN+as9GHX+DbAmkCbGlQ=="],
 
